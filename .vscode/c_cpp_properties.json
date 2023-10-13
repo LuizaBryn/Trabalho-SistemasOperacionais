@@ -1,0 +1,24 @@
+{
+  "configurations": [
+    {
+      "name": "Win32",
+      "includePath": [
+        "${workspaceFolder}/**",
+        "C:/pdcurses/pd_curses",
+        "C:/MinGW/include",
+        "C:/MinGW/include/ncurses",
+        "C:/MinGW/include/ncursesw"
+      ],
+      "defines": ["_DEBUG", "UNICODE", "_UNICODE"],
+      "compilerPath": "C:/MinGW/bin/gcc.exe",
+      "browse": {
+        "path": [
+          "${workspaceFolder}",
+          "C:/pdcurses/pd_curses",
+          "C:/MinGW/include/ncurses"
+        ]
+      }
+    }
+  ],
+  "version": 4
+}
