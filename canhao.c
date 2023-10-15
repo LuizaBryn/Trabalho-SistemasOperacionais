@@ -15,6 +15,8 @@ int contaResgatado = 0;
 int posicaoHelice = 0;
 int posicaRoda[2] = {0, 0};
 int canhaoMovendo[2] = {0, 0};
+int ponte_ocupada = 0; // 0 = livre, 1 = ocupada
+int canhao_carregando = -1; // -1 = nenhum, 0 = Canhão 0, 1 = Canhão 1
 
 void *printScreenThread(void *arg);
 void *getArrowKeyThread(void *arg);
@@ -406,13 +408,29 @@ void canhaoCarrega(int canhao)
         origemCanhao = origemCanhao1;
     }
 
-    canhaoMovendo[canhao] = 1; // Canhao em movimento para recarregar
+    canhaoMovendo[canhao] = 1; // Canhao em movimento para a ponte
+    moveCanhaoD2E(origemCanhao, 40, canhao); // Canhao vai recarregar
 
-    // Espera para adquirir o mutex (para garantir acesso exclusivo à ponte)
-    pthread_mutex_lock(&ponte_mutex);
+    pthread_mutex_lock(&mutex_ponte);
 
-    // Atravessa a ponte
-    moveCanhaoD2E(origemCanhao, 23, canhao); // Canhao vai recarregar
+    while (ponte_ocupada || canhao_carregando != -1) {
+        pthread_mutex_unlock(&mutex_ponte);
+        usleep(100000); // Aguarda um curto período e tenta novamente
+        pthread_mutex_lock(&mutex_ponte);
+    }
+
+    ponte_ocupada = 1;
+    canhao_carregando = canhao;
+
+    pthread_mutex_unlock(&mutex_ponte);
+
+    // Simula o tempo de recarga da bateria
+    usleep(2000000); // 2 segundos
+
+    pthread_mutex_lock(&mutex_ponte);
+  
+     // Atravessa a ponte
+    moveCanhaoD2E(40, 23, canhao); // Canhao vai recarregar
 
     //Carrega
     canhaoMovendo[canhao] = 0; // Canhao parado
@@ -421,10 +439,12 @@ void canhaoCarrega(int canhao)
     //Volta a ponte
     canhaoMovendo[canhao] = 1;
     moveCanhaoE2D(23, origemCanhao, canhao);
+    ponte_ocupada = 0;
+    canhao_carregando = -1;
 
-    // Libera a ponte
-    pthread_mutex_unlock(&ponte_mutex);
+    pthread_mutex_unlock(&mutex_ponte);
 
+    return NULL;
 }
 
 
