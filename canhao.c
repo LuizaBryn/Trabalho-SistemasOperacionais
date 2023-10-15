@@ -25,6 +25,7 @@ void apaga_helicopteroE2D(int x, int y);
 
 pthread_mutex_t ponte_mutex = PTHREAD_MUTEX_INITIALIZER;
 
+
 // Function gotoxy
 void gotoxy(int x, int y)
 {
@@ -125,38 +126,7 @@ void canhaoAtira(int x, int y)
         bomba(x + 5, y - 1, posicao);
     }
 }
-void canhaoCarrega(int canhao)
-{   
-    int origemCanhao;
 
-    if (canhao == 0){
-        origemCanhao = 0;
-    } else {
-        origemCanhao = 1;
-    }
-
-    canhaoMovendo[canhao] = 1; // Canhao em movimento para recarregar
-
-    // Espera para adquirir o mutex (para garantir acesso exclusivo à ponte)
-    pthread_mutex_lock(&ponte_mutex);
-
-    // Atravessa a ponte
-    moveCanhaoD2E(origemCanhao, 23, 0); // Canhao vai recarregar
-
-    //Carrega
-    canhaoMovendo[canhao] = 0; // Canhao parado
-    usleep(10000)
-
-    //Volta a ponte
-    canhaoMovendo[canhao] = 1;
-    moveCanhaoD2E(origemCanhao, 23, 0);
-
-    // Libera a ponte
-    pthread_mutex_unlock(&ponte_mutex);
-
-
-    return 0;
-}
 
 void apagaCanhao(int x, int y)
 {
@@ -426,43 +396,37 @@ void apaga_helicopteroE2D(int x, int y)
     printf("               \n");
 }
 
-int main()
-{
-    pthread_t screenThread;
-    if (pthread_create(&screenThread, NULL, printScreenThread, NULL) != 0)
-    {
-        perror("Erro ao criar a thread da tela");
-        exit(1);
-    }
-    pthread_t arrowKeyThread;
-    if (pthread_create(&arrowKeyThread, NULL, getArrowKeyThread, NULL) != 0)
-    {
-        perror("Erro ao criar a thread de input");
-        exit(1);
-    }
-        pthread_t canhao0Thread, canhao1Thread;
+void canhaoCarrega(int canhao)
+{   
+    int origemCanhao;
 
-    // Cria as threads para os canhões
-    if (pthread_create(&canhao0Thread, NULL, canhao0_thread, NULL) != 0) {
-        perror("Erro ao criar a thread do Canhão 0");
-        exit(1);
+    if (canhao == 0){
+        origemCanhao = origemCanhao0;
+    } else {
+        origemCanhao = origemCanhao1;
     }
 
-    if (pthread_create(&canhao1Thread, NULL, canhao1_thread, NULL) != 0) {
-        perror("Erro ao criar a thread do Canhão 1");
-        exit(1);
-    }
+    canhaoMovendo[canhao] = 1; // Canhao em movimento para recarregar
 
-    // O restante do código principal pode continuar a executar enquanto a thread estiver em execução.
+    // Espera para adquirir o mutex (para garantir acesso exclusivo à ponte)
+    pthread_mutex_lock(&ponte_mutex);
 
-    // Aguarde a conclusão da thread (opcional).
-    pthread_join(screenThread, NULL);
-    pthread_join(canhao0Thread, NULL);
-    pthread_join(canhao1Thread, NULL);
-    pthread_join(arrowKeyThread, NULL);
+    // Atravessa a ponte
+    moveCanhaoD2E(origemCanhao, 23, canhao); // Canhao vai recarregar
 
-    return 0;
+    //Carrega
+    canhaoMovendo[canhao] = 0; // Canhao parado
+    usleep(10000);
+
+    //Volta a ponte
+    canhaoMovendo[canhao] = 1;
+    moveCanhaoE2D(23, origemCanhao, canhao);
+
+    // Libera a ponte
+    pthread_mutex_unlock(&ponte_mutex);
+
 }
+
 
 void *printScreenThread(void *arg)
 {
@@ -474,8 +438,6 @@ void *printScreenThread(void *arg)
         {
             printf("^");
         }
-        inicializaCanhao(origemCanhao0, 20, 0);
-        inicializaCanhao(origemCanhao1, 20, 1);
         ponte();
         plataformaE();
         desenhaRefens();
@@ -494,18 +456,21 @@ void *printScreenThread(void *arg)
 }
 
 void *canhao0_thread(void *arg) {
-    while (1) {
-        canhaoAtira(origemCanhao0, 20); // Canhao 0 Dispara
-        canhaoCarrega(0); // Canhao 0 vai carregar
+     inicializaCanhao(origemCanhao0, 20, 0);
+     while (1) {
+         canhaoAtira(origemCanhao0, 20); // Canhao 0 Dispara
+         canhaoCarrega(0); // Canhao 0 vai carregar
     }
 }
 
 void *canhao1_thread(void *arg) {
-    while (1) {
+   inicializaCanhao(origemCanhao1, 20, 1);
+   while (1) {
         canhaoAtira(origemCanhao1, 20); // Canhao 1 Dispara
         canhaoCarrega(1); // Canhao 1 vai carregar
     }
 }
+      
 
 void *getArrowKeyThread(void *arg)
 {
@@ -558,4 +523,45 @@ void *getArrowKeyThread(void *arg)
 
     tcsetattr(STDIN_FILENO, TCSANOW, &oldtc);
     pthread_exit(NULL);
+}
+
+
+
+
+int main()
+{
+    pthread_t screenThread;
+    if (pthread_create(&screenThread, NULL, printScreenThread, NULL) != 0)
+    {
+        perror("Erro ao criar a thread da tela");
+        exit(1);
+    }
+    pthread_t arrowKeyThread;
+    if (pthread_create(&arrowKeyThread, NULL, getArrowKeyThread, NULL) != 0)
+    {
+        perror("Erro ao criar a thread de input");
+        exit(1);
+    }
+        pthread_t canhao0Thread, canhao1Thread;
+
+    // Cria as threads para os canhões
+    if (pthread_create(&canhao0Thread, NULL, canhao0_thread, NULL) != 0) {
+        perror("Erro ao criar a thread do Canhão 0");
+        exit(1);
+    }
+
+    if (pthread_create(&canhao1Thread, NULL, canhao1_thread, NULL) != 0) {
+        perror("Erro ao criar a thread do Canhão 1");
+        exit(1);
+    }
+
+    // O restante do código principal pode continuar a executar enquanto a thread estiver em execução.
+
+    // Aguarde a conclusão da thread (opcional).
+    pthread_join(screenThread, NULL);
+    pthread_join(canhao0Thread, NULL);
+    pthread_join(canhao1Thread, NULL);
+    pthread_join(arrowKeyThread, NULL);
+
+    return 0;
 }
