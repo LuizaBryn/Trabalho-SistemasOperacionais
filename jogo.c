@@ -7,17 +7,21 @@
 #include <pthread.h>
 
 int x, missao = 0;
-int origemHelicoptero = 105, oldOrigemHelicoptero = 106;
-int temResgatado = 0;
+int origemHelicopteroX = 105, oldOrigemHelicopteroX = 106;
+int origemHelicopteroY = 1;
+int temSoldado = 0;
 int origemCanhao0 = 53, origemCanhao1 = 93;
-int contaRefem = 10;
-int contaResgatado = 0;
+int contaSoldado = 10, contaRefem = 10, contaResgatado = 0;
 int posicaoHelice = 0;
 int posicaRoda[2] = {0, 0};
 int canhaoMovendo[2] = {0, 0};
 
+pthread_mutex_t mutex;
+
 void *printScreenThread(void *arg);
 void *getArrowKeyThread(void *arg);
+void *helicopteroRecebeSoldado(void *arg);
+void *helicopteroSalvaSoldado(void *arg);
 void explode_bomba(int x, int y);
 void helicopteroE2D(int x, int y);
 void helicopteroD2E(int x, int y);
@@ -238,24 +242,44 @@ void deposito(void)
 
 int main()
 {
+
+    pthread_mutex_init(&mutex, NULL);
+
+    // thread para elementos da tela
     pthread_t screenThread;
     if (pthread_create(&screenThread, NULL, printScreenThread, NULL) != 0)
     {
         perror("Erro ao criar a thread da tela");
         exit(1);
     }
+    // thread para inputs de teclado
     pthread_t arrowKeyThread;
     if (pthread_create(&arrowKeyThread, NULL, getArrowKeyThread, NULL) != 0)
     {
         perror("Erro ao criar a thread de input");
         exit(1);
     }
-
-    // O restante do código principal pode continuar a executar enquanto a thread estiver em execução.
+    // threads para recebimento/salvamento de reféns
+    pthread_t helicopteroRecebeThread;
+    if (pthread_create(&helicopteroRecebeThread, NULL, helicopteroRecebeSoldado, NULL) != 0)
+    {
+        perror("Erro ao criar a thread");
+        exit(1);
+    }
+    pthread_t helicopteroSalvaThread;
+    if (pthread_create(&helicopteroSalvaThread, NULL, helicopteroSalvaSoldado, NULL) != 0)
+    {
+        perror("Erro ao criar a thread");
+        exit(1);
+    }
 
     // Aguarde a conclusão da thread (opcional).
     pthread_join(screenThread, NULL);
     pthread_join(arrowKeyThread, NULL);
+    pthread_join(helicopteroRecebeThread, NULL);
+    pthread_join(helicopteroSalvaThread, NULL);
+
+    pthread_mutex_destroy(&mutex);
 
     return 0;
 }
@@ -265,6 +289,8 @@ void *printScreenThread(void *arg)
     while (1)
     {
         system("clear");
+        printf("x: %d, y: %d\n", origemHelicopteroX, origemHelicopteroY);
+        printf("refens: %d, resgatados: %d", contaRefem, contaResgatado);
         gotoxy(0, 25);
         for (int coluna = 0; coluna < 120; coluna++)
         {
@@ -275,12 +301,16 @@ void *printScreenThread(void *arg)
         ponte();
         plataformaE();
         desenhaRefens();
+        desenhaResgatados();
         deposito();
         plataformaD();
-        if (origemHelicoptero - oldOrigemHelicoptero < 0)
-            helicopteroD2E(origemHelicoptero, 0);
+
+        pthread_mutex_lock(&mutex);
+        if (origemHelicopteroX - oldOrigemHelicopteroX < 0)
+            helicopteroD2E(origemHelicopteroX, origemHelicopteroY);
         else
-            helicopteroE2D(origemHelicoptero, 0);
+            helicopteroE2D(origemHelicopteroX, origemHelicopteroY);
+        pthread_mutex_unlock(&mutex);
 
         usleep(100000);
     }
@@ -316,28 +346,78 @@ void *getArrowKeyThread(void *arg)
         {
         // up arrow
         case 65:
+            pthread_mutex_lock(&mutex);
+            origemHelicopteroY -= 1;
+            pthread_mutex_unlock(&mutex);
             break;
         // down arrow
         case 66:
+            pthread_mutex_lock(&mutex);
+            origemHelicopteroY += 1;
+            pthread_mutex_unlock(&mutex);
             break;
         // right arrow
         case 67:
-            oldOrigemHelicoptero = origemHelicoptero;
-            origemHelicoptero += 1;
+            pthread_mutex_lock(&mutex);
+            oldOrigemHelicopteroX = origemHelicopteroX;
+            origemHelicopteroX += 1;
+            pthread_mutex_unlock(&mutex);
             break;
         // left arrow
         case 68:
-            oldOrigemHelicoptero = origemHelicoptero;
-            origemHelicoptero -= 1;
+            pthread_mutex_lock(&mutex);
+            oldOrigemHelicopteroX = origemHelicopteroX;
+            origemHelicopteroX -= 1;
+            pthread_mutex_unlock(&mutex);
             break;
         default:
             break;
         }
-
-        // Você pode fazer o que quiser com a tecla lida aqui, por exemplo, imprimir ou processar.
     }
 
     tcsetattr(STDIN_FILENO, TCSANOW, &oldtc);
+    pthread_exit(NULL);
+}
+
+void *helicopteroRecebeSoldado(void *arg)
+{
+    while (1)
+    {
+        if (oldOrigemHelicopteroX <= 10 && origemHelicopteroY < 3)
+        {
+            pthread_mutex_lock(&mutex);
+            if (!temSoldado && contaRefem > 0)
+            {
+                temSoldado += 1;
+                contaRefem -= 1;
+            }
+            pthread_mutex_unlock(&mutex);
+        }
+
+        usleep(100000);
+    }
+
+    pthread_exit(NULL);
+}
+
+void *helicopteroSalvaSoldado(void *arg)
+{
+    while (1)
+    {
+        if (oldOrigemHelicopteroX >= 100 && origemHelicopteroY < 3)
+        {
+            pthread_mutex_lock(&mutex);
+            if (temSoldado && (contaSoldado - contaResgatado > 0))
+            {
+                temSoldado -= 1;
+                contaResgatado += 1;
+            }
+            pthread_mutex_unlock(&mutex);
+        }
+
+        usleep(100000);
+    }
+
     pthread_exit(NULL);
 }
 
@@ -423,7 +503,7 @@ void helicopteroE2D(int x, int y)
     gotoxy(x, y + 3);
     printf("      \\      )\n");
     gotoxy(x, y + 4);
-    if (!temResgatado)
+    if (!temSoldado)
         printf("       _+__+_\n");
     else
         printf("       _+_@+_\n");
@@ -476,7 +556,7 @@ void helicopteroD2E(int x, int y)
     gotoxy(x, y + 3);
     printf("(      /\n");
     gotoxy(x + 2, y + 4);
-    if (!temResgatado)
+    if (!temSoldado)
         printf("_+__+_       \n");
     else
         printf("_+@_+_       \n");
